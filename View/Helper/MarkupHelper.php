@@ -14,6 +14,8 @@
  * @license       http://www.opensource.org/licenses/mit-license.php The MIT License
  */
 
+App::uses('AppHelper', 'View/Helper');
+
 class MarkupHelper extends AppHelper {
 
 /**
@@ -24,7 +26,7 @@ class MarkupHelper extends AppHelper {
 /**
  * View instance
  * 
- * @var object 
+ * @var View 
  */
 	protected $_view = null;
 
@@ -84,6 +86,30 @@ class MarkupHelper extends AppHelper {
 	protected $_loadedHelpers = array();
 
 /**
+ * Minimized attributes
+ *
+ * @var array
+ */
+	protected $_minimizedAttributes = array(
+		'compact', 'checked', 'declare', 'readonly', 'disabled', 'selected',
+		'defer', 'ismap', 'nohref', 'noshade', 'nowrap', 'multiple', 'noresize'
+	);
+
+/**
+ * Format to attribute
+ *
+ * @var string
+ */
+	protected $_attributeFormat = '%s="%s"';
+
+/**
+ * Format to attribute
+ *
+ * @var string
+ */
+	protected $_minimizedAttributeFormat = '%s="%s"';
+
+/**
  * Constructor.
  * 
  * Options:
@@ -91,9 +117,11 @@ class MarkupHelper extends AppHelper {
  *                    HelperName => prefix,
  *                    array('name' => HelperName, 'prefix' => prefix))
  *
+ * @param View
  * @param $options array
  */
-	public function __construct($opts=array()) {
+	public function __construct(View $view, $opts=array()) {
+		$this->_view = $view;
 		$tmp = array();
 		foreach ($this->emptyElements as $tag) {
 			$tmp[$tag] = true;
@@ -117,7 +145,7 @@ class MarkupHelper extends AppHelper {
 				$this->useHelper($helper);
 			}
 		}
-		parent::__construct();
+		parent::__construct($view);
 	}
 
 /**
@@ -283,12 +311,10 @@ class MarkupHelper extends AppHelper {
  *
  * Collects loaded helpers and builds regex.
  */
-	public function beforeRender() {
-		$this->_view =& ClassRegistry::getObject('view');
-
+	public function beforeRender($viewFile) {
 		$helperNames = array();
 		if (!empty($this->_view)) {
-			foreach ($this->_view->loaded as $camelBacked => $obj) {
+			foreach ($this->_view->Helpers->enabled() as $camelBacked => $obj) {
 				$camelized = Inflector::camelize($camelBacked);
 				$this->_loadedHelpers[$camelized] =& $this->_view->loaded[$camelBacked];
 				$helperNames[] = $camelized;
@@ -307,14 +333,14 @@ class MarkupHelper extends AppHelper {
 /**
  * The afterRender callback.
  */
-	public function afterRender() {
+	public function afterRender($viewFile) {
 		$this->clear();
 	}
 
 /**
  * The afterLayout callback.
  */
-	public function afterLayout() {
+	public function afterLayout($layoutFile) {
 		$this->clear();
 	}
 

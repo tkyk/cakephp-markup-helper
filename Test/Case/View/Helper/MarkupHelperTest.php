@@ -12,34 +12,35 @@
  * @license       http://www.opensource.org/licenses/mit-license.php The MIT License
  */
 
-App::import('View', 'View');
-App::import('Helper', 'Markup.Markup');
-
-Mock::generate('Helper');
-Mock::generate('View');
+App::uses('View', 'View');
+App::uses('Controller', 'Controller');
+App::uses('MarkupHelper', 'Markup.View/Helper');
 
 function _s($obj) {
 	return strval($obj);
 }
 
 class MarkupTestCase extends CakeTestCase {
-	var $v;
-	var $h;
+	public $v;
+	public $h;
+	protected $_dummyViewFile = "dummy.ctp";
 
-	function startTest() {
-		$this->h = new MarkupHelper();
+	public function setUp() {
+		parent::setUp();
 
 		$c = new Controller;
 		$this->v = new View($c, true);
+		$this->h = new MarkupHelper($this->v);
 
-		$this->h->beforeRender();
+		$this->h->beforeRender($this->_dummyViewFile);
 	}
 
-	function endTest() {
+	public function tearDown() {
 		ClassRegistry::flush();
+		parent::tearDown();
 	}
 
-	function testStartTag() {
+	public function testStartTag() {
 		$h = $this->h;
 
 		$this->assertIdentical($h, $h->startTag('div'));
@@ -68,7 +69,7 @@ class MarkupTestCase extends CakeTestCase {
 
 	}
 
-	function testStartTagChain() {
+	public function testStartTagChain() {
 		$h = $this->h;
 
 		$this->assertEqual('<div class="foo"><div id="bar"><p>baz</p>',
@@ -83,7 +84,7 @@ class MarkupTestCase extends CakeTestCase {
 
 	}
 
-	function testEndTag() {
+	public function testEndTag() {
 		$h = $this->h;
 
 		$this->assertIdentical($h, $h->endTag());
@@ -105,7 +106,7 @@ class MarkupTestCase extends CakeTestCase {
 			->endTag()));
 	}
 
-	function testEndTagWithExplicitTagName() {
+	public function testEndTagWithExplicitTagName() {
 		$h = $this->h;
 
 		$this->assertEqual('<div></div>',
@@ -128,38 +129,74 @@ class MarkupTestCase extends CakeTestCase {
 		$this->assertNoErrors();
 	}
 
-	function testEndTagError() {
-		$h = $this->h;
-
-		$this->assertEqual('', _s($h->endTag('div')));
-		$this->assertErrorPattern('/unopened tag: div/');
-
-		$this->assertEqual('', _s($h->endTag('div')->endTag('p')));
-		$this->assertErrorPattern('/unopened tag: div/');
-		$this->assertErrorPattern('/unopened tag: p/');
-
-		$this->assertEqual('<div>foo</div>',
-			_s($h->startTag('div', null, 'foo')->endTag('div')));
-		$this->assertErrorPattern('/unopened tag: div/');
-
-		$this->assertEqual('<p><strong><i></i></strong></p>',
-			_s($h->startTag('p')
-			->startTag('strong')
-			->startTag('i')
-			->endTag()
-			->endTag('div')
-			->endTag('p')));
-		$this->assertErrorPattern('/unopened tag: div/');
-
-		$this->assertEqual('<p><strong><i>',
-			_s($h->startTag('p')
-			->startTag('strong')
-			->startTag('i')
-			->endTag('span')));
-		$this->assertErrorPattern('/unopened tag: span/');
+	protected function _errorHander(&$arr) {
+		$self = $this;
+		return function($errno, $message) use ($self, &$arr) {
+			$arr[] = $message;
+		};
 	}
 
-	function testEndAllTags() {
+	public function assertEndTagError($testCode, $result, $errorMessagePatterns) {
+		$errorCount = count($errorMessagePatterns);
+
+		$errors = array();
+		set_error_handler($this->_errorHander($errors), E_USER_WARNING);
+
+		$testCode($this->h);
+		$this->assertEqual($result, _s($this->h));
+		$this->assertEqual($errorCount, count($errors));
+		foreach ($errorMessagePatterns as $i => $pattern) {
+			$this->assertRegExp($pattern, $errors[$i]);
+		}
+
+		restore_error_handler();
+	}
+
+	public function testEndTagError() {
+		$this->assertEndTagError(
+			function($h){ $h->endTag('div'); },
+			"",
+			array('/unopened tag: div/')
+		);
+
+		$this->assertEndTagError(
+			function($h){ $h->endTag('div')->endTag('p'); },
+			"",
+			array('/unopened tag: div/', '/unopened tag: p/')
+		);
+
+		$this->assertEndTagError(
+			function($h){ $h->startTag('div', null, 'foo')->endTag('div'); },
+			'<div>foo</div>',
+			array('/unopened tag: div/')
+		);
+
+		$this->assertEndTagError(
+			function($h){
+				$h->startTag('p')
+					->startTag('strong')
+					->startTag('i')
+					->endTag()
+					->endTag('div')
+					->endTag('p');
+			},
+			'<p><strong><i></i></strong></p>',
+			array('/unopened tag: div/')
+		);
+
+		$this->assertEndTagError(
+			function($h){
+				$h->startTag('p')
+					->startTag('strong')
+					->startTag('i')
+					->endTag('span');
+			},
+			'<p><strong><i>',
+			array('/unopened tag: span/')
+		);
+	}
+
+	public function testEndAllTags() {
 		$h = $this->h;
 
 		$this->assertIdentical($h, $h->endAllTags());
@@ -180,7 +217,7 @@ class MarkupTestCase extends CakeTestCase {
 			->endTag()));
 	}
 
-	function testClear() {
+	public function testClear() {
 		$h = $this->h;
 
 		$h->startTag('div')->startTag('p');
@@ -189,7 +226,7 @@ class MarkupTestCase extends CakeTestCase {
 		$this->assertEqual('', _s($h->endTag()));
 	}
 
-	function testNewline() {
+	public function testNewline() {
 		$h = $this->h;
 
 		$nl = "\n";
@@ -204,7 +241,7 @@ class MarkupTestCase extends CakeTestCase {
 			_s($h->startTag('div', 'foo')->endTag()->newline()));
 	}
 
-	function testEmptyElements() {
+	public function testEmptyElements() {
 		$h = $this->h;
 
 		$this->assertEqual("<br />", _s($h->startTag('br')));
@@ -226,7 +263,7 @@ class MarkupTestCase extends CakeTestCase {
 			_s($h->startTag('hr', 'line', 'NEVER USED', false)));
 	}
 
-	function testText() {
+	public function testText() {
 		$h = $this->h;
 
 		$this->assertIdentical($h, $h->text("foo"));
@@ -246,7 +283,7 @@ class MarkupTestCase extends CakeTestCase {
 			->endTag()));
 	}
 
-	function testHtml() {
+	public function testHtml() {
 		$h = $this->h;
 
 		$this->assertIdentical($h, $h->html("foo"));
@@ -264,7 +301,7 @@ class MarkupTestCase extends CakeTestCase {
 			->endTag()));
 	}
 
-	function testPushAndPopContext() {
+	public function testPushAndPopContext() {
 		$h = $this->h;
 
 		$h->startTag('div')->startTag('p');
@@ -292,7 +329,7 @@ class MarkupTestCase extends CakeTestCase {
 		$this->assertEqual('<ol></ol>', _s($h->endTag()));
 	}
 
-	function testPopContextReturnsString() {
+	public function testPopContextReturnsString() {
 		$h = $this->h;
 
 		$h->startTag('div')->startTag('p');
@@ -323,7 +360,7 @@ class MarkupTestCase extends CakeTestCase {
 		$this->assertEqual('<ol></ol>', _s($h->endTag()));
 	}
 
-	function testPopContextReturnsStringHandlySyntax() {
+	public function testPopContextReturnsStringHandlySyntax() {
 		$this->h->div('outer');
 
 		$this->assertEqual('<div class="inner"><p>foo</p></div>',
@@ -334,7 +371,7 @@ class MarkupTestCase extends CakeTestCase {
 			_s($this->h->endAllTags));
 	}
 
-	function testShortCutMethods1() {
+	public function testShortCutMethods1() {
 		$h = $this->h;
 
 		$this->assertEqual('<div class="foo"><p title="aaaaaa"><strong>bar</strong></p></div>',
@@ -351,7 +388,7 @@ class MarkupTestCase extends CakeTestCase {
 			->tr->td(null, 'bar')->end->end));
 	}
 
-	function testShortCutMethods2() {
+	public function testShortCutMethods2() {
 		$h = $this->h;
 
 		$this->assertEqual('<div class="foo"><p title="aaaaaa"><strong>bar</strong></p></div>',
@@ -368,7 +405,7 @@ class MarkupTestCase extends CakeTestCase {
 			->tr->td(null, 'bar')->nl->endtable));
 	}
 
-	function testShortCutMethodsFlipArgs() {
+	public function testShortCutMethodsFlipArgs() {
 		$h = $this->h;
 
 		$this->assertEqual('<div class="foo">&lt;aaa&gt;</div>', _s($h->div_("<aaa>", "foo")));
@@ -381,7 +418,7 @@ class MarkupTestCase extends CakeTestCase {
 		$this->assertEqual('<div class="foo">', _s($h->div_(null, "foo")));
 	}
 
-	function testAliasMethod() {
+	public function testAliasMethod() {
 		$h = $this->h;
 
 		$h->aliasMethod('newline2', 'newline');
@@ -396,15 +433,17 @@ class MarkupTestCase extends CakeTestCase {
 class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 	var $h;
 
-	function startTest() {
-		$this->h = new MarkupHelper();
+	public function setUp() {
+		parent::setUp();
+		$this->h = new MarkupHelper($this->_createView());
 	}
 
-	function endTest() {
+	public function tearDown() {
 		ClassRegistry::flush();
+		parent::tearDown();
 	}
 
-	function _createView() {
+	public function _createView() {
 		$c = new Controller;
 		return new View($c, true);
 	}
@@ -413,7 +452,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
  * - Add HelperName to $helpers
  * - Add (prefix => HelperName) to $prefix2Helper 
  */
-	function testUseHelper() {
+	public function testUseHelper() {
 		$h = $this->h;
 
 		$helperCount = count($h->helpers);
@@ -446,13 +485,13 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 			($prefixCount = count($h->prefix2Helper)));
 	}
 
-	function assertHelperPrefixMatch($p, $x, $match1, $match2) {
+	public function assertHelperPrefixMatch($p, $x, $match1, $match2) {
 		$this->assertTrue(preg_match($p, $x, $m));
 		$this->assertEqual($match1, $m[1]);
 		$this->assertEqual($match2, $m[2]);
 	}
 
-	function testBuildHelperRegex() {
+	public function testBuildHelperRegex() {
 		$h = $this->h;
 
 		$regex = $h->buildHelperRegex(array('Html', 'Form', 'FooBar'));
@@ -467,7 +506,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$this->assertNoPattern($regex, 'Unknown_');
 	}
 
-	function testBuildHelperRegex_customPrefixes() {
+	public function testBuildHelperRegex_customPrefixes() {
 		$h = $this->h;
 
 		$regex = $h->buildHelperRegex(array('FooBar'));
@@ -484,7 +523,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$this->assertNoPattern($regex, 'x_lkjkfdsa');
 	}
 
-	function testCallHelperMethod() {
+	public function testCallHelperMethod() {
 		$h = $this->h;
 
 		$v = $this->_createView();
@@ -493,7 +532,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
 
 		// execute beforeRender callback
-		$h->beforeRender();
+		$h->beforeRender($this->_dummyViewFile);
 
 		$args = array('label', '/path');
 
@@ -511,7 +550,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 			$h->callHelperMethod('fb', 'test_method', $args));
 	}
 
-	function test__CallHelperMethods() {
+	public function test__CallHelperMethods() {
 		$h = $this->h;
 
 		$v = $this->_createView();
@@ -520,7 +559,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
 
 		// execute beforeRender callback
-		$h->beforeRender();
+		$h->beforeRender($this->_dummyViewFile);
 
 		$args = array('label', '/path');
 
@@ -542,7 +581,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$this->assertEqual('<Unknown_test_method class="a">b</Unknown_test_method>', _s($h));
 	}
 
-	function testConstructor() {
+	public function testConstructor() {
 		$h = new MarkupHelper();
 
 		$this->assertEqual(2, count($h->helpers));
@@ -567,14 +606,14 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 
 	}
 
-	function testRenderElement() {
+	public function testRenderElement() {
 		$h = $this->h;
 
 		$v = new MockView();
 		ClassRegistry::addObject('view', $v);
 
 		// execute beforeRender
-		$h->beforeRender();
+		$h->beforeRender($this->_dummyViewFile);
 
 		$v->expectCallCount('dispatchMethod', 2);
 		$v->expectAt(0, 'dispatchMethod', array('element', array('element1')));
@@ -584,14 +623,14 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 		$h->renderElement('element2', array('var' => true));
 	}
 
-	function testRenderElement_context() {
+	public function testRenderElement_context() {
 		$h = $this->h;
 		$className = get_class($this).uniqid()."TestView";
 
 		$code = 'class '. $className .' extends View {
 			var $h;
-			function __construct($h){ $this->h = $h; }
-			function element($e) {
+			public function __construct($h){ $this->h = $h; }
+			public function element($e) {
 				return strval($this->h->p->text($e)->endAllTags);
 	}
 	}';
@@ -599,7 +638,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 
 	$v = new $className($h);
 	ClassRegistry::addObject('view', $v);
-	$h->beforeRender();
+	$h->beforeRender($this->_dummyViewFile);
 
 	$this->assertEqual('<div>', _s($h->div));
 	$this->assertEqual('<p>element1</p>',
@@ -611,7 +650,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 	}
 
 
-	function testBeforeRender_noRegister() {
+	public function testBeforeRender_noRegister() {
 		$h = $this->h;
 		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
 
@@ -627,7 +666,7 @@ class MarkupHelper_OtherHelpersTestCase extends CakeTestCase {
 			$h->helpers);
 
 		// execute beforeRender callback
-		$h->beforeRender();
+		$h->beforeRender($this->_dummyViewFile);
 
 		$args = array('label', '/path');
 
