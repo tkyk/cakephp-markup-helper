@@ -45,34 +45,34 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 
 		$h->useHelper(array('name' => 'Foo'));
 		$this->assertTrue(in_array('Foo', $h->helpers));
-		$this->assertEqual($helperCount + 1,
+		$this->assertEquals($helperCount + 1,
 			($helperCount = count($h->helpers)));
-		$this->assertEqual($prefixCount,
+		$this->assertEquals($prefixCount,
 			($prefixCount = count($h->prefix2Helper)));
 
 
 		$h->useHelper(array('name' => 'Foo',
 			'prefix' => 'fff'));
 		$this->assertTrue(in_array('Foo', $h->helpers));
-		$this->assertEqual('Foo', $h->prefix2Helper['fff']);
-		$this->assertEqual($helperCount,
+		$this->assertEquals('Foo', $h->prefix2Helper['fff']);
+		$this->assertEquals($helperCount,
 			($helperCount = count($h->helpers)));
-		$this->assertEqual($prefixCount + 1,
+		$this->assertEquals($prefixCount + 1,
 			($prefixCount = count($h->prefix2Helper)));
 
 
 		$h->useHelper('Bar');
 		$this->assertTrue(in_array('Bar', $h->helpers));
-		$this->assertEqual($helperCount + 1,
+		$this->assertEquals($helperCount + 1,
 			($helperCount = count($h->helpers)));
-		$this->assertEqual($prefixCount,
+		$this->assertEquals($prefixCount,
 			($prefixCount = count($h->prefix2Helper)));
 	}
 
 	public function assertHelperPrefixMatch($p, $x, $match1, $match2) {
-		$this->assertEqual(1, preg_match($p, $x, $m));
-		$this->assertEqual($match1, $m[1]);
-		$this->assertEqual($match2, $m[2]);
+		$this->assertEquals(1, preg_match($p, $x, $m));
+		$this->assertEquals($match1, $m[1]);
+		$this->assertEquals($match2, $m[2]);
 	}
 
 	public function testBuildHelperRegex() {
@@ -84,10 +84,10 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 		$this->assertHelperPrefixMatch($regex, 'Form_create', 'Form', 'create');
 		$this->assertHelperPrefixMatch($regex, 'FooBar_xxx_yyy', 'FooBar', 'xxx_yyy');
 
-		$this->assertNoPattern($regex, 'html_xxxx');
-		$this->assertNoPattern($regex, 'Html');
-		$this->assertNoPattern($regex, 'Form_');
-		$this->assertNoPattern($regex, 'Unknown_');
+		$this->assertNotRegExp($regex, 'html_xxxx');
+		$this->assertNotRegExp($regex, 'Html');
+		$this->assertNotRegExp($regex, 'Form_');
+		$this->assertNotRegExp($regex, 'Unknown_');
 	}
 
 	public function testBuildHelperRegex_customPrefixes() {
@@ -96,15 +96,15 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 		$regex = $h->buildHelperRegex(array('FooBar'));
 
 		$this->assertHelperPrefixMatch($regex, 'FooBar_xxx_yyy', 'FooBar', 'xxx_yyy');
-		$this->assertNoPattern($regex, 't_xyz');
-		$this->assertNoPattern($regex, 'fb_xxx_yyy');
+		$this->assertNotRegExp($regex, 't_xyz');
+		$this->assertNotRegExp($regex, 'fb_xxx_yyy');
 
 		$regex = $h->buildHelperRegex(array('Test', 'FooBar'),
 			array('t', 'fb'));
 		$this->assertHelperPrefixMatch($regex, 'FooBar_xxx_yyy', 'FooBar', 'xxx_yyy');
 		$this->assertHelperPrefixMatch($regex, 't_xyz', 't', 'xyz');
 		$this->assertHelperPrefixMatch($regex, 'fb_xxx_yyy', 'fb', 'xxx_yyy');
-		$this->assertNoPattern($regex, 'x_lkjkfdsa');
+		$this->assertNotRegExp($regex, 'x_lkjkfdsa');
 	}
 
 	public function testCallHelperMethod() {
@@ -130,7 +130,7 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 			->method('dispatchMethod')
 			->with($dispatch[0], $dispatch[1])
 			->will($this->returnValue('<a>'));
-		$this->assertEqual('<a>',
+		$this->assertEquals('<a>',
 			$h->callHelperMethod('Html', 'link', $args));
 
 
@@ -140,7 +140,7 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 			->method('dispatchMethod')
 			->with($dispatch[0], $dispatch[1])
 			->will($this->returnValue('test return'));
-		$this->assertEqual('test return',
+		$this->assertEquals('test return',
 			$h->callHelperMethod('fb', 'test_method', $args));
 	}
 
@@ -170,26 +170,26 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 
 		$dispatch = array('link', $args);
 		$this->expectOnce($v->Helpers->Html, 'dispatchMethod', $dispatch, '<a>');
-		$this->assertIdentical($h, $h->Html_link($args[0], $args[1]));
-		$this->assertEqual('<a>', _s($h));
+		$this->assertSame($h, $h->Html_link($args[0], $args[1]));
+		$this->assertEquals('<a>', _s($h));
 
 		$dispatch = array('test_method', $args);
 		$this->expectOnce($v->Helpers->FooBar, 'dispatchMethod', $dispatch, '<test /><return />');
-		$this->assertIdentical($h, $h->fb_test_method($args[0], $args[1]));
-		$this->assertEqual('<test /><return />', _s($h));
+		$this->assertSame($h, $h->fb_test_method($args[0], $args[1]));
+		$this->assertEquals('<test /><return />', _s($h));
 
-		$this->assertIdentical($h, $h->Unknown_test_method("a", "b"));
-		$this->assertEqual('<Unknown_test_method class="a">b</Unknown_test_method>', _s($h));
+		$this->assertSame($h, $h->Unknown_test_method("a", "b"));
+		$this->assertEquals('<Unknown_test_method class="a">b</Unknown_test_method>', _s($h));
 	}
 
 	public function testConstructor() {
 		$h = new MarkupHelper($this->v);
 
-		$this->assertEqual(2, count($h->helpers));
+		$this->assertEquals(2, count($h->helpers));
 		$this->assertTrue(in_array('Html', $h->helpers));
 		$this->assertTrue(in_array('Form', $h->helpers));
-		$this->assertEqual('Html', $h->prefix2Helper['h']);
-		$this->assertEqual('Form', $h->prefix2Helper['f']);
+		$this->assertEquals('Html', $h->prefix2Helper['h']);
+		$this->assertEquals('Form', $h->prefix2Helper['f']);
 
 		$h2 = new MarkupHelper($this->v,
 			array(
@@ -198,14 +198,14 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 				'Zoo' => 'z',
 				array('name' => 'Baz', 'prefix' => 'h'))));
 
-		$this->assertEqual(6, count($h2->helpers));
+		$this->assertEquals(6, count($h2->helpers));
 		foreach(array('Html', 'Form', 'Foo', 'Bar', 'Zoo', 'Baz') as $a) {
 			$this->assertTrue(in_array($a, $h2->helpers));
 		}
-		$this->assertEqual('Baz', $h2->prefix2Helper['h']);
-		$this->assertEqual('Form', $h2->prefix2Helper['f']);
-		$this->assertEqual('Bar', $h2->prefix2Helper['b']);
-		$this->assertEqual('Zoo', $h2->prefix2Helper['z']);
+		$this->assertEquals('Baz', $h2->prefix2Helper['h']);
+		$this->assertEquals('Form', $h2->prefix2Helper['f']);
+		$this->assertEquals('Bar', $h2->prefix2Helper['b']);
+		$this->assertEquals('Zoo', $h2->prefix2Helper['z']);
 
 	}
 
@@ -230,8 +230,8 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 			->with('element', $elm2)
 			->will($this->returnValue("<element2 />"));
 
-		$this->assertEqual("<element1 />", _s($h->renderElement($elm1[0])));
-		$this->assertEqual("<element2 />", _s($h->renderElement($elm2[0], $elm2[1])));
+		$this->assertEquals("<element1 />", _s($h->renderElement($elm1[0])));
+		$this->assertEquals("<element2 />", _s($h->renderElement($elm2[0], $elm2[1])));
 	}
 
 	public function testRenderElement_context() {
@@ -251,14 +251,14 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 
 		$h->beforeRender($this->_dummyViewFile);
 
-		$this->assertEqual('<div>', _s($h->div));
-		$this->assertEqual(
+		$this->assertEquals('<div>', _s($h->div));
+		$this->assertEquals(
 			'<p>element1</p>',
 			_s($h->renderElement('element1')
 		));
-		$this->assertEqual('</div>', _s($h->end));
+		$this->assertEquals('</div>', _s($h->end));
 
-		$this->assertEqual(
+		$this->assertEquals(
 			'<div class="a"><p>element2</p></div>',
 			_s($h->div("a")->renderElement('element2')->enddiv)
 		);
