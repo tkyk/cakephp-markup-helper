@@ -9,21 +9,27 @@ function _s($obj) {
 }
 
 class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
-	var $h;
+	public $h;
+	public $v;
+	protected $_dummyViewFile = 'dummy.ctp';
 
 	public function setUp() {
 		parent::setUp();
-		$this->h = new MarkupHelper($this->_createView());
+		$this->v = $this->_createView();
+		$this->h = new MarkupHelper($this->v);
 	}
 
 	public function tearDown() {
-		ClassRegistry::flush();
+		unset($this->h);
+		unset($this->v);
 		parent::tearDown();
 	}
 
 	public function _createView() {
 		$c = new Controller;
-		return new View($c, true);
+		$v = new View($c);
+		$v->Helpers = $this->getMock('HelperCollection', array('enabled'), array($v));
+		return $v;
 	}
 
 /**
@@ -64,7 +70,7 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 	}
 
 	public function assertHelperPrefixMatch($p, $x, $match1, $match2) {
-		$this->assertTrue(preg_match($p, $x, $m));
+		$this->assertEqual(1, preg_match($p, $x, $m));
 		$this->assertEqual($match1, $m[1]);
 		$this->assertEqual($match2, $m[2]);
 	}
@@ -103,10 +109,14 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 
 	public function testCallHelperMethod() {
 		$h = $this->h;
+		$v = $this->v;
 
-		$v = $this->_createView();
-		$v->loaded['html'] = new MockHelper();
-		$v->loaded['fooBar'] = new MockHelper();
+		$v->Helpers->expects($this->once())
+			->method('enabled')
+			->will($this->returnValue(array('Html', 'FooBar')));
+		$v->Helpers->Html = $this->getMock('Object');
+		$v->Helpers->FooBar = $this->getMock('Object');
+
 		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
 
 		// execute beforeRender callback
@@ -115,25 +125,42 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 		$args = array('label', '/path');
 
 		$dispatch = array('link', $args);
-		$v->loaded['html']->expectOnce('dispatchMethod', $dispatch);
-		$v->loaded['html']->setReturnValue('dispatchMethod', '<a>', $dispatch);
-
-		$dispatch = array('test_method', $args);
-		$v->loaded['fooBar']->expectOnce('dispatchMethod', $dispatch);
-		$v->loaded['fooBar']->setReturnValue('dispatchMethod', 'test return', $dispatch);
-
+		$v->Helpers->Html
+			->expects($this->once())
+			->method('dispatchMethod')
+			->with($dispatch[0], $dispatch[1])
+			->will($this->returnValue('<a>'));
 		$this->assertEqual('<a>',
 			$h->callHelperMethod('Html', 'link', $args));
+
+
+		$dispatch = array('test_method', $args);
+		$v->Helpers->FooBar
+			->expects($this->once())
+			->method('dispatchMethod')
+			->with($dispatch[0], $dispatch[1])
+			->will($this->returnValue('test return'));
 		$this->assertEqual('test return',
 			$h->callHelperMethod('fb', 'test_method', $args));
 	}
 
+	protected function expectOnce($mock, $method, $args, $returnValue) {
+		$r = $mock->expects($this->once())
+			->method($method);
+		call_user_func_array(array($r, 'with'), $args)
+			->will($this->returnValue($returnValue));
+	}
+
 	public function test__CallHelperMethods() {
 		$h = $this->h;
+		$v = $this->v;
 
-		$v = $this->_createView();
-		$v->loaded['html'] = new MockHelper();
-		$v->loaded['fooBar'] = new MockHelper();
+		$v->Helpers->expects($this->once())
+			->method('enabled')
+			->will($this->returnValue(array('Html', 'FooBar')));
+		$v->Helpers->Html = $this->getMock('Object');
+		$v->Helpers->FooBar = $this->getMock('Object');
+
 		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
 
 		// execute beforeRender callback
@@ -142,16 +169,12 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 		$args = array('label', '/path');
 
 		$dispatch = array('link', $args);
-		$v->loaded['html']->expectOnce('dispatchMethod', $dispatch);
-		$v->loaded['html']->setReturnValue('dispatchMethod', '<a>', $dispatch);
-
-		$dispatch = array('test_method', $args);
-		$v->loaded['fooBar']->expectOnce('dispatchMethod', $dispatch);
-		$v->loaded['fooBar']->setReturnValue('dispatchMethod', '<test /><return />', $dispatch);
-
+		$this->expectOnce($v->Helpers->Html, 'dispatchMethod', $dispatch, '<a>');
 		$this->assertIdentical($h, $h->Html_link($args[0], $args[1]));
 		$this->assertEqual('<a>', _s($h));
 
+		$dispatch = array('test_method', $args);
+		$this->expectOnce($v->Helpers->FooBar, 'dispatchMethod', $dispatch, '<test /><return />');
 		$this->assertIdentical($h, $h->fb_test_method($args[0], $args[1]));
 		$this->assertEqual('<test /><return />', _s($h));
 
@@ -160,7 +183,7 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 	}
 
 	public function testConstructor() {
-		$h = new MarkupHelper();
+		$h = new MarkupHelper($this->v);
 
 		$this->assertEqual(2, count($h->helpers));
 		$this->assertTrue(in_array('Html', $h->helpers));
@@ -168,10 +191,12 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 		$this->assertEqual('Html', $h->prefix2Helper['h']);
 		$this->assertEqual('Form', $h->prefix2Helper['f']);
 
-		$h2 = new MarkupHelper(array('helpers' => array('Foo',
-			'Bar' => array('prefix' => 'b'),
-			'Zoo' => 'z',
-			array('name' => 'Baz', 'prefix' => 'h'))));
+		$h2 = new MarkupHelper($this->v,
+			array(
+				'helpers' => array('Foo',
+				'Bar' => array('prefix' => 'b'),
+				'Zoo' => 'z',
+				array('name' => 'Baz', 'prefix' => 'h'))));
 
 		$this->assertEqual(6, count($h2->helpers));
 		foreach(array('Html', 'Form', 'Foo', 'Bar', 'Zoo', 'Baz') as $a) {
@@ -185,85 +210,58 @@ class MarkupHelperOtherHelpersTestCase extends CakeTestCase {
 	}
 
 	public function testRenderElement() {
-		$h = $this->h;
+		$v = $this->getMockBuilder('View')
+			->disableOriginalConstructor()
+			->getMock();
+		$h = new MarkupHelper($v);
 
-		$v = new MockView();
-		ClassRegistry::addObject('view', $v);
+		// skipping beforeRender to skip the setup for HelperCollection
+		//$h->beforeRender($this->_dummyViewFile);
 
-		// execute beforeRender
-		$h->beforeRender($this->_dummyViewFile);
+		$elm1 = array('element1');
+		$elm2 = array('element2', array('var' => true));
 
-		$v->expectCallCount('dispatchMethod', 2);
-		$v->expectAt(0, 'dispatchMethod', array('element', array('element1')));
-		$v->expectAt(1, 'dispatchMethod', array('element', array('element2', array('var' => true))));
+		$v->expects($this->at(0))
+			->method('dispatchMethod')
+			->with('element', $elm1)
+			->will($this->returnValue("<element1 />"));
+		$v->expects($this->at(1))
+			->method('dispatchMethod')
+			->with('element', $elm2)
+			->will($this->returnValue("<element2 />"));
 
-		$h->renderElement('element1');
-		$h->renderElement('element2', array('var' => true));
+		$this->assertEqual("<element1 />", _s($h->renderElement($elm1[0])));
+		$this->assertEqual("<element2 />", _s($h->renderElement($elm2[0], $elm2[1])));
 	}
 
 	public function testRenderElement_context() {
-		$h = $this->h;
 		$className = get_class($this).uniqid()."TestView";
+		$code = '
+			class '. $className .' extends View {
+				public $h;
+				public function element($e, $data = array(), $options = array()) {
+					return strval($this->h->p->text($e)->endAllTags);
+				}
+			}';
+		eval($code);
 
-		$code = 'class '. $className .' extends View {
-			var $h;
-			public function __construct($h){ $this->h = $h; }
-			public function element($e) {
-				return strval($this->h->p->text($e)->endAllTags);
-	}
-	}';
-	eval($code);
+		$v = new $className(null);
+		$h = new MarkupHelper($v);
+		$v->h = $h;
 
-	$v = new $className($h);
-	ClassRegistry::addObject('view', $v);
-	$h->beforeRender($this->_dummyViewFile);
-
-	$this->assertEqual('<div>', _s($h->div));
-	$this->assertEqual('<p>element1</p>',
-		_s($h->renderElement('element1')));
-	$this->assertEqual('</div>', _s($h->end));
-
-	$this->assertEqual('<div class="a"><p>element2</p></div>',
-		_s($h->div("a")->renderElement('element2')->enddiv));
-	}
-
-
-	public function testBeforeRender_noRegister() {
-		$h = $this->h;
-		$h->useHelper(array('name' => 'FooBar', 'prefix' => 'fb'));
-
-		// EmailComponent does not register the view to the ClassRegistry!
-		$view = ClassRegistry::getObject('view');
-		$this->assertTrue(empty($view));
-
-		// These assignments are done by view
-		$h->Html = new MockHelper();
-		$h->FooBar = new MockHelper();
-
-		$this->assertEqual(array('Html', 'Form', 'FooBar'),
-			$h->helpers);
-
-		// execute beforeRender callback
 		$h->beforeRender($this->_dummyViewFile);
 
-		$args = array('label', '/path');
+		$this->assertEqual('<div>', _s($h->div));
+		$this->assertEqual(
+			'<p>element1</p>',
+			_s($h->renderElement('element1')
+		));
+		$this->assertEqual('</div>', _s($h->end));
 
-		$dispatch = array('link', $args);
-		$h->Html->expectOnce('dispatchMethod', $dispatch);
-		$h->Html->setReturnValue('dispatchMethod', '<a>', $dispatch);
-
-		$dispatch = array('test_method', $args);
-		$h->FooBar->expectOnce('dispatchMethod', $dispatch);
-		$h->FooBar->setReturnValue('dispatchMethod', '<test /><return />', $dispatch);
-
-		$this->assertIdentical($h, $h->Html_link($args[0], $args[1]));
-		$this->assertEqual('<a>', _s($h));
-
-		$this->assertIdentical($h, $h->fb_test_method($args[0], $args[1]));
-		$this->assertEqual('<test /><return />', _s($h));
-
-		$this->assertIdentical($h, $h->Unknown_test_method("a", "b"));
-		$this->assertEqual('<Unknown_test_method class="a">b</Unknown_test_method>', _s($h));        
+		$this->assertEqual(
+			'<div class="a"><p>element2</p></div>',
+			_s($h->div("a")->renderElement('element2')->enddiv)
+		);
 	}
 
 }

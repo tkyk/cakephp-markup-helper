@@ -313,17 +313,9 @@ class MarkupHelper extends AppHelper {
  */
 	public function beforeRender($viewFile) {
 		$helperNames = array();
-		if (!empty($this->_view)) {
-			foreach ($this->_view->Helpers->enabled() as $camelBacked => $obj) {
-				$camelized = Inflector::camelize($camelBacked);
-				$this->_loadedHelpers[$camelized] =& $this->_view->loaded[$camelBacked];
-				$helperNames[] = $camelized;
-			}
-		} else {
-			foreach ($this->helpers as $camelized) {
-				$this->_loadedHelpers[$camelized] =& $this->{$camelized};
-				$helperNames[] = $camelized;
-			}
+		foreach ($this->_view->Helpers->enabled() as $camelized) {
+			$this->_loadedHelpers[$camelized] = $this->_view->Helpers->{$camelized};
+			$helperNames[] = $camelized;
 		}
 		$prefixes = array_keys($this->prefix2Helper);
 
