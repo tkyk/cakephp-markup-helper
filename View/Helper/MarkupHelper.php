@@ -19,6 +19,11 @@ App::uses('AppHelper', 'View/Helper');
 class MarkupHelper extends AppHelper {
 
 /**
+  * @var array settings array
+  */
+	public $settings = array();
+
+/**
  * @var array Helpers
  */
 	public $helpers = array();
@@ -145,6 +150,7 @@ class MarkupHelper extends AppHelper {
 				$this->useHelper($helper);
 			}
 		}
+		$this->settings = $opts;
 		parent::__construct($view);
 	}
 
